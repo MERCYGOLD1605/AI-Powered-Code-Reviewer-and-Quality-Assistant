@@ -1,5 +1,6 @@
 from core.parser.python_parser import parse_file, get_source
-from core.docstring_engine.llm_integration import generate_ai_doc
+from core.llm_integration import generate_ai_doc
+
 
 def review_file(file_path):
     functions = parse_file(file_path)
@@ -17,3 +18,7 @@ def review_file(file_path):
             })
 
     return results
+
+
+def generate_ai_docstring(code):
+    return generate_ai_doc(code)

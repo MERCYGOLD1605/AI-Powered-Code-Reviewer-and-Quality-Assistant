@@ -1,9 +1,14 @@
 import streamlit as st
 import os
 import difflib
+
 from ai.reviewer import generate_ai_docstring
-from parser.ast_parser import parse_file, get_function_source
+from core.parser.python_parser import parse_file, get_source
 from generator.docstring_generator import generate_docstring
+
+from reports.coverage import generate_coverage_report
+from core.quality_engine.quality_score import calculate_quality_score
+from core.smell_engine.code_smells import detect_code_smells
 
 if "results" not in st.session_state:
     st.session_state.results = []
@@ -51,19 +56,41 @@ def get_diff(original, modified):
         modified.splitlines(),
         lineterm=""
     ))        
-
 if st.button("Scan Code"):
+
+    st.write("🚀 Scan Started")
+
     results = []
+    all_functions = []
 
     for root, _, files in os.walk(folder_path):
+
+        st.write(f"📁 Folder: {root}")
+
         for file in files:
+
             if file.endswith(".py"):
+
+                st.write(f"📄 Scanning: {file}")
+
                 file_path = os.path.join(root, file)
-                functions, _ = parse_file(file_path)
+
+                functions = parse_file(file_path)
+
+                st.write(f"Functions Found: {len(functions)}")
+
+                all_functions.extend(functions)
 
                 for func in functions:
+
+                    st.write(f"Function: {func['name']}")
+
                     if func["docstring"] is None:
-                        code_snippet = get_function_source(file_path, func["node"])              
+
+                        st.write(f"⚠ Missing Docstring: {func['name']}")
+
+                        code_snippet = get_source(file_path, func["node"])
+
                         doc = generate_ai_docstring(code_snippet)
 
                         results.append({
@@ -74,7 +101,51 @@ if st.button("Scan Code"):
                             "doc": doc
                         })
 
-    st.session_state.results = results
+    st.write(f"✅ Total Functions Found: {len(all_functions)}")
+    st.write(f"✅ Missing Docstrings: {len(results)}")
+
+    st.session_state.coverage_report = generate_coverage_report(
+        all_functions
+    )
+
+    st.session_state.quality_report = calculate_quality_score(
+        all_functions
+    )
+
+    st.session_state.smells = detect_code_smells(
+        all_functions
+    )
+
+if (
+    "quality_report" in st.session_state
+    and "coverage_report" in st.session_state
+):
+
+    st.subheader("📊 Project Metrics")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric(
+        "Functions",
+        st.session_state.coverage_report["total"]
+    )
+
+    col2.metric(
+        "Coverage",
+        f"{st.session_state.coverage_report['coverage']}%"
+    )
+
+    col3.metric(
+        "Quality Score",
+        st.session_state.quality_report["overall"]
+    )
+
+    col4.metric(
+        "Code Smells",
+        len(st.session_state.smells)
+    )
+
+    st.divider()
 
 if "results" in st.session_state:
 
